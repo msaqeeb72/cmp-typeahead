@@ -44,6 +44,7 @@ fun <T> TypeAheadTextField(
     label: String = "",
     placeholder: String = "",
     modifier: Modifier = Modifier,
+    minLength:Int = 1,
     onItemSelected: (T) -> Unit,
     debounceDuration: Duration = 1.toDuration(DurationUnit.SECONDS),
     searchKeyExtractor: (T) -> String = { it.toString() },
@@ -57,7 +58,8 @@ fun <T> TypeAheadTextField(
     LaunchedEffect(searchKey) {
         dataList = emptyList()
         delay(debounceDuration)
-        dataList = suggestionsCallback(searchKey)
+        if(searchKey.isNotBlank() && searchKey.length >= minLength)
+            dataList = suggestionsCallback(searchKey)
     }
 
     var textFieldSize by remember { mutableStateOf(Size.Zero) }
