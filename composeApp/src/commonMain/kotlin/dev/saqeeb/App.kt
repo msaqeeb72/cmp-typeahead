@@ -15,6 +15,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import dev.saqeeb.typeahead.TypeAheadTextField
 import multiplatformtypeahead.composeapp.generated.resources.Res
 import multiplatformtypeahead.composeapp.generated.resources.compose_multiplatform
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 @Composable
 @Preview
@@ -26,13 +28,16 @@ fun App() {
                 Text("Click me!")
             }
             TypeAheadTextField<String>(
-                dataList = listOf("Apple","Banana","Pineapple"),
+                suggestionsCallback = {
+                    listOf("Apple", "Banana", "Pineapple")
+                },
                 onItemSelected = {
 
                 },
                 itemContent = {
                     Text(it)
-                }
+                },
+                debounceDuration = 2.toDuration(DurationUnit.SECONDS)
             )
             AnimatedVisibility(showContent) {
                 val greeting = remember { Greeting().greet() }

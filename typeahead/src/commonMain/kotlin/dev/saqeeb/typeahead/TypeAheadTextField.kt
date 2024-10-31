@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,34 +35,40 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 @Composable
 fun <T> TypeAheadTextField(
-    dataList: List<T>,
+    suggestionsCallback: (String) -> List<T>,
     initialValue: String = "",
     label: String = "",
     placeholder: String = "",
     modifier: Modifier = Modifier,
     onItemSelected: (T) -> Unit,
+    debounceDuration: Duration = 1.toDuration(DurationUnit.SECONDS),
     searchKeyExtractor: (T) -> String = { it.toString() },
     itemContent: @Composable (T) -> Unit,
 ) {
-    var searchKey by remember {
-        mutableStateOf(initialValue)
+    var dataList by remember { mutableStateOf(emptyList<T>()) }
+    var searchKey by remember { mutableStateOf(initialValue) }
+    var expanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(searchKey) {
+        dataList = emptyList()
+        delay(debounceDuration)
+        dataList = suggestionsCallback(searchKey)
     }
 
-    var textFieldSize by remember {
-        mutableStateOf(Size.Zero)
-    }
-
-    var expanded by remember {
-        mutableStateOf(false)
-    }
-    val interactionSource = remember {
-        MutableInteractionSource()
-    }
+    var textFieldSize by remember { mutableStateOf(Size.Zero) }
+    val interactionSource = remember { MutableInteractionSource() }
 
     Column(
         modifier = modifier
@@ -70,89 +77,70 @@ fun <T> TypeAheadTextField(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = {
-                    expanded = false
-                }
+                onClick = { expanded = false }
             )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = searchKey,
-                    onValueChange = {
-                        searchKey = it
-                        expanded = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(2.dp)
-                        .onGloballyPositioned { coordinates ->
-                            textFieldSize = coordinates.size.toSize()
-                        },
-                    label = { Text(label) },
-                    placeholder = { Text(placeholder) },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Done
-                    ),
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(onClick = { expanded = !expanded }) {
-                            Icon(
-                                modifier = Modifier.size(24.dp),
-                                imageVector = Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = "arrow",
-                            )
-                        }
-                    }
-                )
+        OutlinedTextField(
+            value = searchKey,
+            onValueChange = {
+                searchKey = it
+                expanded = true
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(2.dp)
+                .onGloballyPositioned { coordinates ->
+                    textFieldSize = coordinates.size.toSize()
+                },
+            label = { Text(label) },
+            placeholder = { Text(placeholder) },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                imeAction = ImeAction.Done
+            ),
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        modifier = Modifier.size(24.dp),
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = "Toggle suggestions"
+                    )
+                }
             }
+        )
 
-            AnimatedVisibility(visible = expanded) {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 5.dp)
-                        .width(textFieldSize.width.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
-                    shape = RoundedCornerShape(10.dp)
+        AnimatedVisibility(visible = expanded) {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 5.dp)
+                    .width(textFieldSize.width.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                val focusManager = LocalFocusManager.current
+
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 150.dp)
                 ) {
-                    val focusManager = LocalFocusManager.current
+                    val filteredList = dataList.filter {
+                        searchKeyExtractor(it).lowercase().contains(searchKey.lowercase())
+                    }.sortedBy { searchKeyExtractor(it) }
 
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 150.dp),
-                    ) {
-                        if (searchKey.isNotEmpty()) {
-                            items(
-                                dataList.filter {
-                                    searchKeyExtractor(it).lowercase()
-                                        .contains(searchKey.lowercase())
-                                }
-                                    .sortedBy { searchKeyExtractor(it) }
-                            ) { item ->
-                                AutoCompleteItem(item = item, onSelect = {
-                                    searchKey = searchKeyExtractor(it)
-                                    expanded = false
-                                    onItemSelected(it)
-                                    focusManager.clearFocus(true)
-                                }, itemContent = itemContent)
-                            }
-                        } else {
-                            items(
-                                dataList.sortedBy { searchKeyExtractor(it) }
-                            ) { item ->
-                                AutoCompleteItem(item = item, onSelect = {
-                                    searchKey = searchKeyExtractor(it)
-                                    expanded = false
-                                    onItemSelected(it)
-                                }, itemContent = itemContent)
-                            }
-                        }
+                    items(filteredList) { item ->
+                        AutoCompleteItem(item = item, onSelect = {
+                            searchKey = searchKeyExtractor(it)
+                            expanded = false
+                            onItemSelected(it)
+                            focusManager.clearFocus()
+                        }, itemContent = itemContent)
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun <T> AutoCompleteItem(
