@@ -8,17 +8,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -36,11 +32,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
@@ -55,6 +47,7 @@ fun <T> TypeAheadTextField(
     onItemSelected: (T) -> Unit,
     debounceDuration: Duration = 1.toDuration(DurationUnit.SECONDS),
     searchKeyExtractor: (T) -> String = { it.toString() },
+    trailingIcon: (@Composable () -> Unit)? = null,
     itemContent: @Composable (T) -> Unit,
 ) {
     var dataList by remember { mutableStateOf(emptyList<T>()) }
@@ -99,15 +92,11 @@ fun <T> TypeAheadTextField(
                 imeAction = ImeAction.Done
             ),
             singleLine = true,
-            trailingIcon = {
+            trailingIcon = { trailingIcon?.let {
                 IconButton(onClick = { expanded = !expanded }) {
-                    Icon(
-                        modifier = Modifier.size(24.dp),
-                        imageVector = Icons.Rounded.KeyboardArrowDown,
-                        contentDescription = "Toggle suggestions"
-                    )
+                    it()
                 }
-            }
+            } }
         )
 
         AnimatedVisibility(visible = expanded) {
